@@ -1,0 +1,69 @@
+# Directs the Travis CI build service for World Wind Android
+# For more information see https://docs.travis-ci.com/user/customizing-the-build/
+
+# Required to install the jq JSON filter used to parse GitHub API results
+sudo: required
+
+# Set up to run the Android build script per the Travis CI documentation
+language: android
+
+jdk:
+  # Configure the build to use Oracle JDK 8, required by Android API 24
+  - oraclejdk8
+
+android:
+  components:
+    - platform-tools      # latest SDK platform-tools is v23.0.1 (but lint wants 24.0.1 for NewApi check)
+    - tools               # latest SDK tools
+    - android-24          # SDK version used to compile the project
+    - build-tools-24.0.3  # build tools used by the project
+    - extra-android-support
+    - extra-android-m2repository
+
+before_install:
+  # Decrypt and un-archive the files keystore.jks and keystore.properties which are used to sign release APKs
+  - openssl aes-256-cbc -K $encrypted_f4941407fe7e_key -iv $encrypted_f4941407fe7e_iv -in keystore.tar.enc -out keystore.tar -d
+  - tar -xf keystore.tar
+
+before_script:
+  # Install the jq shell filter so we can extract data from GitHub API JSON results
+  # See apt configuration: https://docs.travis-ci.com/user/ci-environment/#apt-configuration
+  - sudo apt-get install -qq jq
+  - jq --version
+  # Ensure scripts can be executed (required if scripts are authored in Windows)
+  - chmod +x ./travis/*.sh
+
+script:
+  # Build the project
+  - ./gradlew build
+
+after_success:
+  # Push the daily tag when this build is a cron job
+  - ./travis/add_daily_tag.sh
+  # Push javadoc to GitHub pages and upload build artifacts to GitHub releases, depending on what initiated the build
+  - ./travis/update_javadoc.sh
+  - ./travis/update_release.sh
+
+after_failure:
+  # Concatenate the logcat.log file et al to the travis log
+  - for file in *.log; do echo "$file"; echo "====================="; cat "$file"; done || true
+
+before_cache:
+  # Use the caching configuration per the Travis CI documentation
+  # See https://docs.travis-ci.com/user/languages/android#Caching
+  - rm -f $HOME/.gradle/caches/modules-2/modules-2.lock
+
+cache:
+  directories:
+    # Use the caching configuration per the Travis CI documentation
+    # See https://docs.travis-ci.com/user/languages/android#Caching
+    - $HOME/.gradle/caches/
+    - $HOME/.gradle/wrapper/
+
+notifications:
+  # Notify the World Wind services mailing list on every build
+  email:
+    recipients:
+      secure: SheoPrZZHX1c70JTwoRULza5XobdTPisIgQSfpFBSjolS/Z+qJBIZkyQNKRPfzvs5FEZNBHlaXnvAEX8sUHAJtvp5A9P/c0jaZ3dA0IQ1TJCNg3XT2ZLz4R5JOQclYbgBIqr27MSmx9vvnfGUDCSKaRXdLxmB0Hun7zlkR79IEQ6lLeeB9pu7N/4vuzdmMGKU1lOWs3tmDpdeNOdgSYhKW81eX0FHrgWTXeXcv/3hhtn87XogwKdVKeYFKY+1wHUV3j+dnqeN7yMhqlpljHkOpQ5YqG7nDnPbSJZJ2NINTB/+Mus57eq67FnNl4CDAsWue97wrY8u/+mtGP0boyhXUlBaKJdJpENnuSbxLZtMzvrI5JucxgGXiKei+q84DAh1BbN0+205kBfQgh24GF68bMuKFSpJDobN6usLXVnfjnTrlrMkJQ9wGY/m8g9P9IhJpguJuhYocB6ByMOCkkeSEXdVN6Wb7MGXcfSWdnasVhqAX4yYUt34WUO+vWf842atzXWMZDyStjUe/hWQactB2FhyZBt9kIjMBMWodEhAlDPgFSzwz4huiDkAjeQSszqDQQVOXGFG+f64HhnhYElkY7F08/Yy/sI5HlQ0C0nlNXVsFZ5oHRWwyw02tVVdzNo3ho2h1NSW935S0z3rWRlNOxxKisBON0OBGgZdWJRLYc=
+    on_success: always
+    on_failure: always

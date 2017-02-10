@@ -1,0 +1,79 @@
+apply plugin: 'com.android.library'
+
+android {
+    compileSdkVersion 24
+    buildToolsVersion '24.0.3'
+
+    defaultConfig {
+        minSdkVersion 16
+        targetSdkVersion 24
+        versionCode 50
+        versionName '0.5.0'
+        testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+    testOptions {
+        // Setting returnDefaultValues to true prevents un-mocked Android objects from throwing exceptions.
+        // Use this only as a workaround; Mockito is preferred.
+        // TODO change unitTests.returnDefaultValues to false
+        unitTests.returnDefaultValues = true
+    }
+    productFlavors {
+    }
+    lintOptions {
+        abortOnError false
+        disable 'GradleDependency'
+    }
+}
+
+dependencies {
+    compile fileTree(include: ['*.jar'], dir: 'libs')
+    compile 'com.android.support:appcompat-v7:24.2.1'
+    compile 'com.android.support:support-annotations:24.2.1'
+    androidTestCompile 'com.android.support.test:runner:0.5'
+    androidTestCompile 'com.android.support.test:rules:0.5'
+    testCompile 'junit:junit:4.12'
+    testCompile 'org.mockito:mockito-core:2.0.43-beta'
+    // PowerMockito is required to mock static methods like Logger.log
+    testCompile('org.powermock:powermock-api-mockito:1.6.2') {
+        exclude module: 'hamcrest-core'
+        exclude module: 'objenesis'
+    }
+    testCompile('org.powermock:powermock-module-junit4:1.6.2') {
+        exclude module: 'hamcrest-core'
+        exclude module: 'objenesis'
+    }
+}
+
+task compileJavadocSources(type: Javadoc) {
+    group 'build'
+    source android.sourceSets.main.java.srcDirs
+    classpath += project.files(android.getBootClasspath().join(File.pathSeparator))
+    include('**/*.java')
+    destinationDir file('./build/outputs/doc/javadoc/')
+    title 'NASA World Wind Android'
+    options.windowTitle 'NASA World Wind Android'
+    options.memberLevel = JavadocMemberLevel.PUBLIC
+    failOnError false
+}
+
+task bundleJavadoc(type: Zip) {
+    description 'Assembles a bundle containing the Javadoc API documentation.'
+    from compileJavadocSources.destinationDir
+    include '**/*'
+    destinationDir file('./build/outputs/doc/')
+    archiveName 'worldwind-javadoc.zip'
+}
+
+task assembleJavadoc(type: Task, dependsOn: [compileJavadocSources, bundleJavadoc]) {
+    description 'Assembles the Javadoc API documentation.'
+    group 'build'
+}
+
+assemble.dependsOn(assembleJavadoc)
+bundleJavadoc.mustRunAfter(compileJavadocSources)
