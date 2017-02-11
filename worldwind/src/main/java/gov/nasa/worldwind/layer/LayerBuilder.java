@@ -219,7 +219,7 @@ public class LayerBuilder {
 
         //TODO: Refactor to builder implementation
         public GeoPackageAsyncTask(LayerBuilder builder, String pathName, Layer layer, Callback callback) {
-            //this.factory = factory;
+            this.builder = builder;
             this.pathName = pathName;
             this.layer = layer;
             this.callback = callback;
@@ -229,7 +229,8 @@ public class LayerBuilder {
         public void run() {
             try {
                 //TODO: Refactor to builder implementation
-                //this.factory.createFromGeoPackageAsync(this.pathName, this.layer, this.callback);
+                //this.builder.pathName().layer().callback();
+                //this.builder.createFromGeoPackageAsync(this.pathName, this.layer, this.callback);
             } catch (final Throwable ex) {
                 this.builder.mainLoopHandler.post(new Runnable() {
                     @Override
@@ -256,7 +257,7 @@ public class LayerBuilder {
 
         //TODO: Refactor to builder implementation
         public WmsAsyncTask(LayerBuilder builder, String serviceAddress, List<String> layerNames, Layer layer, Callback callback) {
-            //this.factory = factory;
+            this.builder = builder;
             this.serviceAddress = serviceAddress;
             this.layerNames = layerNames;
             this.layer = layer;
@@ -267,7 +268,8 @@ public class LayerBuilder {
         public void run() {
             try {
                 //TODO: Refactor to builder implementation
-                //this.factory.createFromWmsAsync(this.serviceAddress, this.layerNames, this.layer, this.callback);
+                //this.builder.serviceAddress().layerNames().layer().callback();
+                //this.builder.createFromWmsAsync(this.serviceAddress, this.layerNames, this.layer, this.callback);
             } catch (final Throwable ex) {
                 this.builder.mainLoopHandler.post(new Runnable() {
                     @Override
