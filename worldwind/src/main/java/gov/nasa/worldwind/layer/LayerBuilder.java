@@ -47,16 +47,173 @@ public class LayerBuilder {
         void creationFailed(LayerBuilder builder, Layer layer, Throwable ex);
     }
 
-    public LayerBuilder(){   
-    }
-
     protected Handler mainLoopHandler = new Handler(Looper.getMainLooper());
 
     protected static final double DEFAULT_WMS_RADIANS_PER_PIXEL = 10.0 / WorldWind.WGS84_SEMI_MAJOR_AXIS;
 
     protected List<String> compatibleImageFormats = Arrays.asList("image/png", "image/jpg", "image/jpeg", "image/gif", "image/bmp");
 
+    protected enum compatibleLayerSources {WMS, WMS_LAYER_CAPABILITIES, GEO_PACKAGE}
+
+
+
+    protected String layerSource;
+    protected String serviceAddress;
+    protected String filePathName;
+    protected String layerName;
+    protected List<String> layerNames;
+    protected WmsLayerCapabilities layerCapabilities;
+    protected List<WmsLayerCapabilities> layerCapabilitiesList;
+
     //TODO: LayerBuilder implementation goes here
+    public LayerBuilder setlayerSource(String layerSource){
+        this.layerSource = layerSource;
+        return this;
+    }
+
+    public Layer getLayer(){
+        return null;
+    }
+
+    // Ends LayerBuilder implementation
+
+    protected void createFromGeoPackageAsync(String pathName, Layer layer, LayerBuilder.Callback callback) {
+        GeoPackage geoPackage = new GeoPackage(pathName);
+        final RenderableLayer gpkgRenderables = new RenderableLayer();
+
+        for (GpkgContent content : geoPackage.getContent()) {
+            if (content.getDataType() == null || !content.getDataType().equalsIgnoreCase("tiles")) {
+                Logger.logMessage(Logger.WARN, "LayerBuilder", "createFromGeoPackageAsync",
+                        "Unsupported GeoPackage content data_type: " + content.getDataType());
+                continue;
+            }
+
+            GpkgSpatialReferenceSystem srs = geoPackage.getSpatialReferenceSystem(content.getSrsId());
+            if (srs == null || !srs.getOrganization().equalsIgnoreCase("EPSG") || srs.getOrganizationCoordSysId() != 4326) {
+                Logger.logMessage(Logger.WARN, "LayerBuilder", "createFromGeoPackageAsync",
+                        "Unsupported GeoPackage spatial reference system: " + (srs == null ? "undefined" : srs.getSrsName()));
+                continue;
+            }
+
+            GpkgTileMatrixSet tileMatrixSet = geoPackage.getTileMatrixSet(content.getTableName());
+            if (tileMatrixSet == null || tileMatrixSet.getSrsId() != content.getSrsId()) {
+                Logger.logMessage(Logger.WARN, "LayerBuilder", "createFromGeoPackageAsync",
+                        "Unsupported GeoPackage tile matrix set");
+                continue;
+            }
+
+            GpkgTileUserMetrics tileMetrics = geoPackage.getTileUserMetrics(content.getTableName());
+            if (tileMetrics == null) {
+                Logger.logMessage(Logger.WARN, "LayerBuilder", "createFromGeoPackageAsync",
+                        "Unsupported GeoPackage tiles content");
+                continue;
+            }
+
+            LevelSetConfig config = new LevelSetConfig();
+            config.sector.set(content.getMinY(), content.getMinX(),
+                    content.getMaxY() - content.getMinY(), content.getMaxX() - content.getMinX());
+            config.firstLevelDelta = 180;
+            config.numLevels = tileMetrics.getMaxZoomLevel() + 1; // zero when there are no zoom levels, (0 = -1 + 1)
+            config.tileWidth = 256;
+            config.tileHeight = 256;
+
+            TiledSurfaceImage surfaceImage = new TiledSurfaceImage();
+            surfaceImage.setLevelSet(new LevelSet(config));
+            surfaceImage.setTileFactory(new GpkgTileFactory(content));
+            gpkgRenderables.addRenderable(surfaceImage);
+        }
+
+        if (gpkgRenderables.count() == 0) {
+            throw new RuntimeException(
+                    Logger.makeMessage("LayerBuilder", "createFromGeoPackageAsync", "Unsupported GeoPackage contents"));
+        }
+
+        final RenderableLayer finalLayer = (RenderableLayer) layer;
+        final LayerBuilder.Callback finalCallback = callback;
+
+        // Add the tiled surface image to the layer on the main thread and notify the caller. Request a redraw to ensure
+        // that the image displays on all WorldWindows the layer may be attached to.
+        this.mainLoopHandler.post(new Runnable() {
+            @Override
+            public void run() {
+                finalLayer.addAllRenderables(gpkgRenderables);
+                finalCallback.creationSucceeded(LayerBuilder.this, finalLayer);
+                WorldWind.requestRedraw();
+            }
+        });
+    }
+
+    protected void createFromWmsAsync(String serviceAddress, List<String> layerNames, Layer layer, LayerBuilder.Callback callback) throws Exception {
+        // Parse and read the WMS Capabilities document at the provided service address
+        WmsCapabilities wmsCapabilities = retrieveWmsCapabilities(serviceAddress);
+        List<WmsLayerCapabilities> layerCapabilities = new ArrayList<>();
+        for (String layerName : layerNames) {
+            WmsLayerCapabilities layerCaps = wmsCapabilities.getLayerByName(layerName);
+            if (layerCaps != null) {
+                layerCapabilities.add(layerCaps);
+            }
+        }
+
+        if (layerCapabilities.size() == 0) {
+            throw new RuntimeException(
+                    Logger.makeMessage("LayerBuilder", "createFromWmsAsync", "Provided layers did not match available layers"));
+        }
+
+        this.createWmsLayer(layerCapabilities, layer, callback);
+    }
+
+    protected void createWmsLayer(List<WmsLayerCapabilities> layerCapabilities, Layer layer, LayerBuilder.Callback callback) {
+        final LayerBuilder.Callback finalCallback = callback;
+        final RenderableLayer finalLayer = (RenderableLayer) layer;
+
+        try {
+            WmsCapabilities wmsCapabilities = layerCapabilities.get(0).getServiceCapabilities();
+
+            // Check if the server supports multiple layer request
+            Integer layerLimit = wmsCapabilities.getServiceInformation().getLayerLimit();
+            if (layerLimit != null && layerLimit < layerCapabilities.size()) {
+                throw new RuntimeException(
+                        Logger.makeMessage("LayerBuilder", "createFromWmsAsync", "The number of layers specified exceeds the services limit"));
+            }
+
+            WmsLayerConfig wmsLayerConfig = getLayerConfigFromWmsCapabilities(layerCapabilities);
+            LevelSetConfig levelSetConfig = getLevelSetConfigFromWmsCapabilities(layerCapabilities);
+
+            // Collect WMS Layer Titles to set the Layer Display Name
+            StringBuilder sb = null;
+            for (WmsLayerCapabilities layerCapability : layerCapabilities) {
+                if (sb == null) {
+                    sb = new StringBuilder(layerCapability.getTitle());
+                } else {
+                    sb.append(",").append(layerCapability.getTitle());
+                }
+            }
+            layer.setDisplayName(sb.toString());
+
+            final TiledSurfaceImage surfaceImage = new TiledSurfaceImage();
+
+            surfaceImage.setTileFactory(new WmsTileFactory(wmsLayerConfig));
+            surfaceImage.setLevelSet(new LevelSet(levelSetConfig));
+
+            // Add the tiled surface image to the layer on the main thread and notify the caller. Request a redraw to ensure
+            // that the image displays on all WorldWindows the layer may be attached to.
+            this.mainLoopHandler.post(new Runnable() {
+                @Override
+                public void run() {
+                    finalLayer.addRenderable(surfaceImage);
+                    finalCallback.creationSucceeded(LayerBuilder.this, finalLayer);
+                    WorldWind.requestRedraw();
+                }
+            });
+        } catch (final Throwable ex) {
+            this.mainLoopHandler.post(new Runnable() {
+                @Override
+                public void run() {
+                    finalCallback.creationFailed(LayerBuilder.this, finalLayer, ex);
+                }
+            });
+        }
+    }
 
     protected WmsCapabilities retrieveWmsCapabilities(String serviceAddress) throws Exception {
         InputStream inputStream = null;
