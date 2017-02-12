@@ -38,7 +38,7 @@ public class GeoPackageFragment extends BasicGlobeFragment {
         // Create an OGC GeoPackage layer to display a high resolution monochromatic image of Naval Air Station Oceana
         // in Virginia Beach, VA.
 
-        layerBuilder.setLayerSource("GeoPackage")
+        layerBuilder.setDataSource("GeoPackage")
                     .setPathOrAddress(geoPackageFile.getPath())
                     .setCallback(
                         new LayerBuilder.Callback() {

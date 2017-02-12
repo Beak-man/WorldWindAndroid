@@ -54,13 +54,13 @@ public class LayerBuilder {
 
     protected static final double DEFAULT_WMS_RADIANS_PER_PIXEL = 10.0 / WorldWind.WGS84_SEMI_MAJOR_AXIS;
 
-    protected static final List<String> compatibleLayerSources = Arrays.asList("GEOPACKAGE", "WMS", "WMSLAYERCAPABILITIES");
+    protected final List<String> compatibleDataSources = Arrays.asList("GEOPACKAGE", "WMS", "WMSLAYERCAPABILITIES");
 
     protected List<String> compatibleImageFormats = Arrays.asList("image/png", "image/jpg", "image/jpeg", "image/gif", "image/bmp");
-    
+
     protected Callback callback;
 
-    protected String layerSource;
+    protected String dataSource;
 
     protected String pathOrAddress;
 
@@ -68,10 +68,10 @@ public class LayerBuilder {
 
     protected List<WmsLayerCapabilities> layerCapabilities;
 
-    public LayerBuilder setLayerSource(String layerSource){
+    public LayerBuilder setDataSource(String dataSource){
         // Convert to upper case regardless of how the user entered the source,
         // so it can be compared to the compatibility list
-        this.layerSource = layerSource.toUpperCase();
+        this.dataSource = dataSource.toUpperCase();
         return this;
     }
 
@@ -113,15 +113,15 @@ public class LayerBuilder {
                     Logger.logMessage(Logger.ERROR, "LayerBuilder", "build", "missingCallback"));
         }
 
-        if (layerSource == null){
+        if (dataSource == null){
             throw new IllegalArgumentException(
                     Logger.logMessage(Logger.ERROR, "LayerBuilder", "build", "missingLayerSource"));
         }
 
         // Check if Layer Source is supported
         boolean IsSupported = false;
-        for (String compatibleLayerSource : this.compatibleLayerSources) {
-            if (layerSource.equals(compatibleLayerSource)) {
+        for (String compatibleDataSource : this.compatibleDataSources) {
+            if (dataSource.equals(compatibleDataSource)) {
                 IsSupported = true;
             }
         }
@@ -135,7 +135,7 @@ public class LayerBuilder {
 
             RenderableLayer layer = new RenderableLayer();
 
-            switch(layerSource){
+            switch(dataSource){
 
                 case "GEOPACKAGE":
 

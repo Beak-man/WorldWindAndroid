@@ -33,7 +33,7 @@ public class WmsLayerFragment extends BasicGlobeFragment {
         // Create an OGC Web Map Service (WMS) layer to display the
         // surface temperature layer from NASA's Near Earth Observations WMS.
 
-        layerBuilder.setLayerSource("wms")
+        layerBuilder.setDataSource("wms")
                     .setPathOrAddress("http://neowms.sci.gsfc.nasa.gov/wms/wms")
                     .setLayerNames("\"MOD_LSTD_CLIM_M\"").setCallback(
 
