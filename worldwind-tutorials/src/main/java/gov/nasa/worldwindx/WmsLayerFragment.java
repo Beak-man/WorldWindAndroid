@@ -9,6 +9,7 @@ import android.util.Log;
 
 import gov.nasa.worldwind.WorldWindow;
 import gov.nasa.worldwind.layer.Layer;
+import gov.nasa.worldwind.layer.LayerBuilder;
 import gov.nasa.worldwind.layer.LayerFactory;
 import gov.nasa.worldwind.util.Logger;
 
@@ -24,30 +25,34 @@ public class WmsLayerFragment extends BasicGlobeFragment {
         // Let the super class (BasicGlobeFragment) do the creation
         WorldWindow wwd = super.createWorldWindow();
 
-        // Create a layer factory, World Wind's general component for creating layers
+        // Create a layer Builder, a cool class that aspires to become
+        // World Wind's general component for creating layers
         // from complex data sources.
-        LayerFactory layerFactory = new LayerFactory();
+        LayerBuilder layerBuilder = new LayerBuilder();
 
         // Create an OGC Web Map Service (WMS) layer to display the
         // surface temperature layer from NASA's Near Earth Observations WMS.
-        layerFactory.createFromWms(
-            "http://neowms.sci.gsfc.nasa.gov/wms/wms", // WMS server URL
-            "MOD_LSTD_CLIM_M",                         // WMS layer name
-            new LayerFactory.Callback() {
-                @Override
-                public void creationSucceeded(LayerFactory factory, Layer layer) {
-                    // Add the finished WMS layer to the World Window.
-                    getWorldWindow().getLayers().addLayer(layer);
-                    Log.i("gov.nasa.worldwind", "WMS layer creation succeeded");
-                }
 
-                @Override
-                public void creationFailed(LayerFactory factory, Layer layer, Throwable ex) {
-                    // Something went wrong connecting to the WMS server.
-                    Log.e("gov.nasa.worldwind", "WMS layer creation failed", ex);
-                }
-            }
-        );
+        layerBuilder.setLayerSource("wms")
+                    .setPathOrAddres("http://neowms.sci.gsfc.nasa.gov/wms/wms")
+                    .setLayerNames("\"MOD_LSTD_CLIM_M\"").setCallback(
+
+                        new LayerBuilder.Callback() {
+                            @Override
+                            public void creationSucceeded(LayerBuilder builder, Layer layer) {
+                                // Add the finished WMS layer to the World Window.
+                                getWorldWindow().getLayers().addLayer(layer);
+                                Log.i("gov.nasa.worldwind", "WMS layer creation succeeded");
+                            }
+
+                            @Override
+                            public void creationFailed(LayerBuilder builder, Layer layer, Throwable ex) {
+                                // Something went wrong connecting to the WMS server.
+                                Log.e("gov.nasa.worldwind", "WMS layer creation failed", ex);
+                            }
+                        }
+                    )
+                    .build();
 
         return wwd;
     }

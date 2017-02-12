@@ -129,7 +129,7 @@ public class LayerBuilder {
                     Logger.logMessage(Logger.ERROR, "LayerBuilder", "build", "unsupportedLayerSource"));
         }
         else{
-            
+
             RenderableLayer layer = new RenderableLayer();
 
             switch(layerSource){
