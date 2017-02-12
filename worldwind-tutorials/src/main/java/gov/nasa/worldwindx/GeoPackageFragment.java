@@ -39,7 +39,7 @@ public class GeoPackageFragment extends BasicGlobeFragment {
         // in Virginia Beach, VA.
 
         layerBuilder.setLayerSource("GeoPackage")
-                    .setPathOrAddres(geoPackageFile.getPath())
+                    .setPathOrAddress(geoPackageFile.getPath())
                     .setCallback(
                         new LayerBuilder.Callback() {
                             @Override
@@ -58,9 +58,8 @@ public class GeoPackageFragment extends BasicGlobeFragment {
                                 // Something went wrong reading the GeoPackage.
                                 Log.e("gov.nasa.worldwind", "GeoPackage layer creation failed", ex);
                             }
-                        }
-                    )
-                    .build();
+                        })
+                    .buildLayer();
         return wwd;
     }
 }

@@ -34,7 +34,7 @@ public class WmsLayerFragment extends BasicGlobeFragment {
         // surface temperature layer from NASA's Near Earth Observations WMS.
 
         layerBuilder.setLayerSource("wms")
-                    .setPathOrAddres("http://neowms.sci.gsfc.nasa.gov/wms/wms")
+                    .setPathOrAddress("http://neowms.sci.gsfc.nasa.gov/wms/wms")
                     .setLayerNames("\"MOD_LSTD_CLIM_M\"").setCallback(
 
                         new LayerBuilder.Callback() {
@@ -50,9 +50,8 @@ public class WmsLayerFragment extends BasicGlobeFragment {
                                 // Something went wrong connecting to the WMS server.
                                 Log.e("gov.nasa.worldwind", "WMS layer creation failed", ex);
                             }
-                        }
-                    )
-                    .build();
+                        })
+                    .buildLayer();
 
         return wwd;
     }

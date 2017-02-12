@@ -47,14 +47,17 @@ public class LayerBuilder {
         void creationFailed(LayerBuilder builder, Layer layer, Throwable ex);
     }
 
+    public LayerBuilder() {
+    }
+
     protected Handler mainLoopHandler = new Handler(Looper.getMainLooper());
 
     protected static final double DEFAULT_WMS_RADIANS_PER_PIXEL = 10.0 / WorldWind.WGS84_SEMI_MAJOR_AXIS;
 
+    protected static final List<String> compatibleLayerSources = Arrays.asList("GEOPACKAGE", "WMS", "WMSLAYERCAPABILITIES");
+
     protected List<String> compatibleImageFormats = Arrays.asList("image/png", "image/jpg", "image/jpeg", "image/gif", "image/bmp");
-
-    protected List<String> compatibleLayerSources = Arrays.asList("GEOPACKAGE", "WMS", "WMSLAYERCAPABILITIES");
-
+    
     protected Callback callback;
 
     protected String layerSource;
@@ -72,8 +75,8 @@ public class LayerBuilder {
         return this;
     }
 
-    // Used for both web services addresses or file paths
-    public LayerBuilder setPathOrAddres(String pathOrAddress){
+    // Used for both web service addresses or file paths
+    public LayerBuilder setPathOrAddress(String pathOrAddress){
         this.pathOrAddress = pathOrAddress;
         return this;
     }
@@ -103,7 +106,7 @@ public class LayerBuilder {
         return this;
     }
 
-    public Layer build(){
+    public Layer buildLayer(){
 
         if (callback == null) {
             throw new IllegalArgumentException(
@@ -133,6 +136,7 @@ public class LayerBuilder {
             RenderableLayer layer = new RenderableLayer();
 
             switch(layerSource){
+
                 case "GEOPACKAGE":
 
                     if (pathOrAddress == null) {
