@@ -53,29 +53,152 @@ public class LayerBuilder {
 
     protected List<String> compatibleImageFormats = Arrays.asList("image/png", "image/jpg", "image/jpeg", "image/gif", "image/bmp");
 
-    protected enum compatibleLayerSources {WMS, WMS_LAYER_CAPABILITIES, GEO_PACKAGE}
+    protected List<String> compatibleLayerSources = Arrays.asList("GEOPACKAGE", "WMS", "WMSLAYERCAPABILITIES");
 
-
+    protected Callback callback;
 
     protected String layerSource;
-    protected String serviceAddress;
-    protected String filePathName;
-    protected String layerName;
-    protected List<String> layerNames;
-    protected WmsLayerCapabilities layerCapabilities;
-    protected List<WmsLayerCapabilities> layerCapabilitiesList;
 
-    //TODO: LayerBuilder implementation goes here
-    public LayerBuilder setlayerSource(String layerSource){
-        this.layerSource = layerSource;
+    protected String pathOrAddress;
+
+    protected List<String> layerNames;
+
+    protected List<WmsLayerCapabilities> layerCapabilities;
+
+    public LayerBuilder setLayerSource(String layerSource){
+        // Convert to upper case regardless of how the user entered the source,
+        // so it can be compared to the compatibility list
+        this.layerSource = layerSource.toUpperCase();
         return this;
     }
 
-    public Layer getLayer(){
-        return null;
+    // Used for both web services addresses or file paths
+    public LayerBuilder setPathOrAddres(String pathOrAddress){
+        this.pathOrAddress = pathOrAddress;
+        return this;
     }
 
-    // Ends LayerBuilder implementation
+    public LayerBuilder setCallback(Callback callback){
+        this.callback = callback;
+        return this;
+    }
+
+    public LayerBuilder setLayerNames(String layerName){
+        this.layerNames = Collections.singletonList(layerName);
+        return this;
+    }
+
+    public LayerBuilder setLayerNames(List<String> layerNames){
+        this.layerNames = layerNames;
+        return this;
+    }
+
+    public LayerBuilder setWmsLayerCapabilities(WmsLayerCapabilities layerCapabilities){
+        this.layerCapabilities = Collections.singletonList(layerCapabilities);
+        return this;
+    }
+
+    public LayerBuilder setWmsLayerCapabilities(List<WmsLayerCapabilities> layerCapabilities){
+        this.layerCapabilities = layerCapabilities;
+        return this;
+    }
+
+    public Layer build(){
+
+        if (callback == null) {
+            throw new IllegalArgumentException(
+                    Logger.logMessage(Logger.ERROR, "LayerBuilder", "build", "missingCallback"));
+        }
+
+        if (layerSource == null){
+            throw new IllegalArgumentException(
+                    Logger.logMessage(Logger.ERROR, "LayerBuilder", "build", "missingLayerSource"));
+        }
+
+        // Check if Layer Source is supported
+        boolean IsSupported = false;
+        for (String compatibleLayerSource : this.compatibleLayerSources) {
+            if (layerSource.equals(compatibleLayerSource)) {
+                IsSupported = true;
+            }
+        }
+
+        // If the layer source is not supported
+        if(IsSupported == false){
+            throw new IllegalArgumentException(
+                    Logger.logMessage(Logger.ERROR, "LayerBuilder", "build", "unsupportedLayerSource"));
+        }
+        else{
+            
+            RenderableLayer layer = new RenderableLayer();
+
+            switch(layerSource){
+                case "GEOPACKAGE":
+
+                    if (pathOrAddress == null) {
+                        throw new IllegalArgumentException(
+                                Logger.logMessage(Logger.ERROR, "LayerBuilder", "build", "missingGeoPackagePathName"));
+                    }
+
+                    // Disable picking for the layer; terrain surface picking is performed automatically by WorldWindow.
+                    layer.setPickEnabled(false);
+
+                    GeoPackageAsyncTask GeoTask = new GeoPackageAsyncTask(this, pathOrAddress, layer, callback);
+
+                    try {
+                        WorldWind.taskService().execute(GeoTask);
+                    } catch (RejectedExecutionException logged) { // singleton task service is full; this should never happen but we check anyway
+                        callback.creationFailed(this, layer, logged);
+                    }
+
+                    return layer;
+
+                case "WMS":
+
+                    if(layerNames == null || layerNames.isEmpty()){
+                        throw new IllegalArgumentException(
+                                Logger.logMessage(Logger.ERROR, "LayerBuilder", "build", "missingLayerNames"));
+                    }
+
+
+                    if (pathOrAddress == null) {
+                        throw new IllegalArgumentException(
+                                Logger.logMessage(Logger.ERROR, "LayerBuilder", "build", "missingWmsServiceAddress"));
+                    }
+
+                    // Disable picking for the layer; terrain surface picking is performed automatically by WorldWindow.
+                    layer.setPickEnabled(false);
+
+                    WmsAsyncTask WmsTask = new WmsAsyncTask(this, pathOrAddress, layerNames, layer, callback);
+
+                    try {
+                        WorldWind.taskService().execute(WmsTask);
+                    } catch (RejectedExecutionException logged) { // singleton task service is full; this should never happen but we check anyway
+                        callback.creationFailed(this, layer, logged);
+                    }
+
+                    return layer;
+
+
+                case "WMSLAYERCAPABILITIES":
+
+                    if (layerCapabilities == null || layerCapabilities.size() == 0) {
+                        throw new IllegalArgumentException(
+                                Logger.logMessage(Logger.ERROR, "LayerFactory", "createFromWmsLayerCapabilities", "missing layers"));
+                    }
+
+                    // Disable picking for the layer; terrain surface picking is performed automatically by WorldWindow.
+                    layer.setPickEnabled(false);
+
+                    this.createWmsLayer(layerCapabilities, layer, callback);
+
+                    return layer;
+            }
+
+            throw new RuntimeException(
+                    Logger.logMessage(Logger.ERROR, "LayerBuilder", "build", "unreachableAfterSwitchStatement"));
+        }
+    }
 
     protected void createFromGeoPackageAsync(String pathName, Layer layer, LayerBuilder.Callback callback) {
         GeoPackage geoPackage = new GeoPackage(pathName);
@@ -363,7 +486,6 @@ public class LayerBuilder {
         return levelSetConfig;
     }
 
-    //TODO: Refactor for LayerBuilder usage
     protected static class GeoPackageAsyncTask implements Runnable {
 
         protected LayerBuilder builder;
@@ -374,7 +496,6 @@ public class LayerBuilder {
 
         protected Callback callback;
 
-        //TODO: Refactor to builder implementation
         public GeoPackageAsyncTask(LayerBuilder builder, String pathName, Layer layer, Callback callback) {
             this.builder = builder;
             this.pathName = pathName;
@@ -385,9 +506,7 @@ public class LayerBuilder {
         @Override
         public void run() {
             try {
-                //TODO: Refactor to builder implementation
-                //this.builder.pathName().layer().callback();
-                //this.builder.createFromGeoPackageAsync(this.pathName, this.layer, this.callback);
+                this.builder.createFromGeoPackageAsync(this.pathName, this.layer, this.callback);
             } catch (final Throwable ex) {
                 this.builder.mainLoopHandler.post(new Runnable() {
                     @Override
@@ -399,7 +518,6 @@ public class LayerBuilder {
         }
     }
 
-    //TODO:Refactor for LayerBuilder usage
     protected static class WmsAsyncTask implements Runnable {
 
         protected LayerBuilder builder;
@@ -412,7 +530,6 @@ public class LayerBuilder {
 
         protected Callback callback;
 
-        //TODO: Refactor to builder implementation
         public WmsAsyncTask(LayerBuilder builder, String serviceAddress, List<String> layerNames, Layer layer, Callback callback) {
             this.builder = builder;
             this.serviceAddress = serviceAddress;
@@ -424,9 +541,7 @@ public class LayerBuilder {
         @Override
         public void run() {
             try {
-                //TODO: Refactor to builder implementation
-                //this.builder.serviceAddress().layerNames().layer().callback();
-                //this.builder.createFromWmsAsync(this.serviceAddress, this.layerNames, this.layer, this.callback);
+                this.builder.createFromWmsAsync(this.serviceAddress, this.layerNames, this.layer, this.callback);
             } catch (final Throwable ex) {
                 this.builder.mainLoopHandler.post(new Runnable() {
                     @Override
