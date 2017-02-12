@@ -39,7 +39,30 @@ import gov.nasa.worldwind.util.LevelSetConfig;
 import gov.nasa.worldwind.util.Logger;
 import gov.nasa.worldwind.util.WWUtil;
 
+/**
+ * Alternative World Wind Android's general component for creating layers from complex data sources.
+ * Implemented using a Builder design pattern. This is a refactor of <code>LayerFactory</code>.
+ * It builds layers from data sources such as GeoPackage files and WMS web services.
+ * For instance, a GeoPackage Layer can be built as such:
+ * <code>
+ * <pre>
+ *
+ *  LayerBuilder layerBuilder = new LayerBuilder();
+ *
+ *  layerBuilder.setDataSource("GeoPackage")
+ *              .setPathOrAddress("path_to_geopackage_file.dpkg")
+ *              .setCallBack(
+ *                  new LayerBuilder.Callback() {...}
+ *                  )
+ *              .buildLayer();
+ * </pre>
+ * </code>
+ * A usage example can be seen in <code>WmsLayerFragment.java</code> and
+ * <code>GeoPackageFragment.java</code> in the tutorials.
+ */
+
 public class LayerBuilder {
+
     public interface Callback {
 
         void creationSucceeded(LayerBuilder builder, Layer layer);
@@ -50,62 +73,130 @@ public class LayerBuilder {
     public LayerBuilder() {
     }
 
+    /**
+     * mainLoopHandler is the same as LayerFactory
+     */
     protected Handler mainLoopHandler = new Handler(Looper.getMainLooper());
 
+    /**
+     * Sets the angular resolution in the globe's ellipsoid for the imagery
+     * obtained via WMS.
+     */
     protected static final double DEFAULT_WMS_RADIANS_PER_PIXEL = 10.0 / WorldWind.WGS84_SEMI_MAJOR_AXIS;
 
+    /**
+     * List of data sources that the builder supports. The user needs to enter one of these
+     * in order to use the builder in the <code>setDataSource</code> function.
+     */
     protected final List<String> compatibleDataSources = Arrays.asList("GEOPACKAGE", "WMS", "WMSLAYERCAPABILITIES");
 
+    /**
+     * List of compatible image formats to obtain from Web Mapping Services (WMS).
+     */
     protected List<String> compatibleImageFormats = Arrays.asList("image/png", "image/jpg", "image/jpeg", "image/gif", "image/bmp");
 
+    /**
+     * Stores the callback function obtained with the <code>setCallback</code> chain function.
+     */
     protected Callback callback;
 
+    /**
+     * Stores the data source obtained with the <code>setDataSource</code> chain function.
+     * In <code>buildLayer</code> the contents are compared to <code>compatibleDataSources</code>
+     */
     protected String dataSource;
 
+    /**
+     * Stores the path or address of the data source obtained with the <code>setPathOrSource</code> chain function.
+     * In the case of web services, this corresponds to the URL. In the case of files, it corresponds to the file path.
+     */
     protected String pathOrAddress;
 
+    /**
+     * Stores list of layers obtained in the <code>setLayerNames</code> chain function.
+     * This can be, for instance, the layers obtained from a WMS service.
+     */
     protected List<String> layerNames;
 
+    /**
+     * Stores list of the layer capabilities from a WMS GetCapabilities request obtained in the
+     * <code>setWmsLayerCapabilities</code> chain function.
+     */
     protected List<WmsLayerCapabilities> layerCapabilities;
 
+    /**
+     * @param dataSource Data source setter. Required.
+     * @return LayerBuilder object
+     */
     public LayerBuilder setDataSource(String dataSource){
-        // Convert to upper case regardless of how the user entered the source,
+        // Conversion to upper case regardless of how the user entered the source,
         // so it can be compared to the compatibility list
         this.dataSource = dataSource.toUpperCase();
         return this;
     }
 
-    // Used for both web service addresses or file paths
+    /**
+     * @param pathOrAddress File path or URL mapping web service setter. Required.
+     * @return LayerBuilder object
+     */
     public LayerBuilder setPathOrAddress(String pathOrAddress){
         this.pathOrAddress = pathOrAddress;
         return this;
     }
 
+    /**
+     * @param callback Callback function setter. Required.
+     * @return LayerBuilder object
+     */
     public LayerBuilder setCallback(Callback callback){
         this.callback = callback;
         return this;
     }
 
+    /**
+     * @param layerName Layer name setter. Required for WMS Data source.
+     * @return LayerBuilder object
+     */
     public LayerBuilder setLayerNames(String layerName){
         this.layerNames = Collections.singletonList(layerName);
         return this;
     }
 
+    /**
+     * @param layerNames Layer names setter. Required for WMS Data source.
+     * @return LayerBuilder object
+     */
     public LayerBuilder setLayerNames(List<String> layerNames){
         this.layerNames = layerNames;
         return this;
     }
 
+    /**
+     * @param layerCapabilities WMS layer capabilities setter. Required for <code>WMSLAYERCAPABILITIES</code> data source.
+     * @return LayerBuilder object
+     */
     public LayerBuilder setWmsLayerCapabilities(WmsLayerCapabilities layerCapabilities){
         this.layerCapabilities = Collections.singletonList(layerCapabilities);
         return this;
     }
 
+    /**
+     * @param layerCapabilities WMS layer capabilities setter. Required for <code>WMSLAYERCAPABILITIES</code> data source.
+     * @return LayerBuilder object
+     */
     public LayerBuilder setWmsLayerCapabilities(List<WmsLayerCapabilities> layerCapabilities){
         this.layerCapabilities = layerCapabilities;
         return this;
     }
 
+    /**
+     * Builds the layer. Should be the last chain function to be called when all the
+     * other data source parameters are set in the <code>LayerBuilder</code> instance.
+     * @return the layer built with the parameters set by the previous setter chain functions.
+     * @throws IllegalArgumentException
+     * @throws RejectedExecutionException
+     * @throws RuntimeException
+     */
     public Layer buildLayer(){
 
         if (callback == null) {
@@ -137,7 +228,7 @@ public class LayerBuilder {
 
             switch(dataSource){
 
-                case "GEOPACKAGE":
+                case "GEOPACKAGE": // Build a layer from GeoPackage file
 
                     if (pathOrAddress == null) {
                         throw new IllegalArgumentException(
@@ -157,7 +248,7 @@ public class LayerBuilder {
 
                     return layer;
 
-                case "WMS":
+                case "WMS": // Build a layer asynchronously from a Web Mapping Service (WMS)
 
                     if(layerNames == null || layerNames.isEmpty()){
                         throw new IllegalArgumentException(
@@ -184,7 +275,7 @@ public class LayerBuilder {
                     return layer;
 
 
-                case "WMSLAYERCAPABILITIES":
+                case "WMSLAYERCAPABILITIES": // Build a layer from the XML file obtained from a GetCapabilities request in a Web Mapping Service (WMS)
 
                     if (layerCapabilities == null || layerCapabilities.size() == 0) {
                         throw new IllegalArgumentException(
